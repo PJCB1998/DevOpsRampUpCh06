@@ -1,0 +1,64 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|   
+    # General Vagrant VM configuration.
+    config.vm.box = "debian/buster64"
+    config.ssh.insert_key = false
+    config.vm.synced_folder ".", "/vagrant", disabled: true
+    config.vm.provider :virtualbox do |v|
+        v.memory = 1024
+        v.linked_clone = true
+    end
+    
+
+    # Auth-api server
+    config.vm.define "auth_api" do |auth_api|
+        auth_api.vm.hostname = "auth-api.test"
+        auth_api.vm.network :private_network, ip: "192.168.56.20"
+    end
+
+    # User-api server
+    config.vm.define "user_api" do |user_api|
+        user_api.vm.hostname = "user-api.test"
+        user_api.vm.network :private_network, ip: "192.168.56.30"
+    end
+
+    # Todo-api sever
+    config.vm.define "todo_api" do |todo_api|
+        todo_api.vm.hostname = "todo-api.test"
+        todo_api.vm.network :private_network, ip: "192.168.56.40"
+    end
+
+    # LMP sever
+    config.vm.define "lmp" do |lmp|
+        lmp.vm.hostname = "lpm.test"
+        lmp.vm.network :private_network, ip: "192.168.56.50"
+    end
+
+    # Frontend sever
+    config.vm.define "frontend" do |frontend|
+        frontend.vm.hostname = "frontend.test"
+        frontend.vm.network :private_network, ip: "192.168.56.60"
+    end
+
+    # Todo-api sever
+    config.vm.define "db" do |db|
+        db.vm.hostname = "db.test"
+        db.vm.network :private_network, ip: "192.168.56.60"
+    end
+
+    # Todo-api sever
+    config.vm.define "zipkin" do |zipkin|
+        zipkin.vm.hostname = "zipkin.test"
+        zipkin.vm.network :private_network, ip: "192.168.56.60"
+    end
+
+    #   Provisioning configuration for Ansible.
+    #config.vm.provision "ansible" do |ansible|
+    #ansible.playbook = "../Ansible/playbook.yml"
+    #end
+
+end
