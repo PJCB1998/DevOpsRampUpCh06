@@ -11,7 +11,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.provider :virtualbox do |v|
         v.memory = 512
         v.linked_clone = true
-        vb.cpus = 1
+        v.cpus = 1
     end
     
 
