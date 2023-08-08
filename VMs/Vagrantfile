@@ -48,13 +48,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # Todo-api sever
     config.vm.define "db" do |db|
         db.vm.hostname = "db.test"
-        db.vm.network :private_network, ip: "192.168.56.60"
+        db.vm.network :private_network, ip: "192.168.56.70"
     end
 
     # Todo-api sever
     config.vm.define "zipkin" do |zipkin|
         zipkin.vm.hostname = "zipkin.test"
-        zipkin.vm.network :private_network, ip: "192.168.56.60"
+        zipkin.vm.network :private_network, ip: "192.168.56.80"
     end
 
     #   Provisioning configuration for Ansible.
