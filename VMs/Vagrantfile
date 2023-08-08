@@ -10,7 +10,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.synced_folder ".", "/vagrant", disabled: true
     config.vm.provider :virtualbox do |v|
         v.memory = 512
-        config.disksize.size = '4GB'
+        config.disksize.size = '3GB'
         v.linked_clone = true
     end
     
