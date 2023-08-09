@@ -95,3 +95,39 @@
     - name: Run the application
       command:
         cmd: systemctl start auth-api.service
+
+
+- hosts: todo_api
+  become: yes
+  vars :
+       node_app_location: /app/todo-api
+
+  tasks:
+    - name: Install nodejs and npm
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - npm
+          - nodejs
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-todos-api.git
+        dest: "{{ node_app_location }}"
+
+    - name: Ensure node app folder exists.
+      file: "path={{ node_app_location }} state=directory"
+
+    - name: Move todo-api.service
+      command: 
+        cmd: cp {{ node_app_location }}/todo-api.service /etc/systemd/system  
+    
+    - name: Build node app
+      command: 
+        cmd: "/usr/bin/npm install"
+        chdir: "{{ node_app_location }}"
+        
+    - name: Run the application
+      command:
+        cmd: systemctl start todo-api.service
