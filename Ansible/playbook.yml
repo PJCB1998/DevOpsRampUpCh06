@@ -1,14 +1,55 @@
 ---
 - hosts: all
+  
   tasks:
-    - name: Print all hosts' hostnames, IP addresses, and ping the user
-      debug:
-        var:
-          - ansible_hostname
-          - ansible_default_ipv4
-          - ansible_user
+    - name: Ping 
+      ansible.builtin.ping:
 
-    - name: Ping the user
-      ping:
-        host: "{{ ansible_default_ipv4 }}"
-        user: "{{ ansible_user }}"
+- hosts: user_api
+  become: yes
+  vars :
+       java_app_location: /app/users-api
+
+  tasks:
+    - name: Install java
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - openjdk-8-jdk
+          - maven
+
+    - name: Correct java version selected
+      community.general.alternatives:
+        name: java
+        path: /usr/lib/jvm/java-8-openjdk-amd64/bin/java
+
+    - name: Fetch Java version
+      shell:
+        cmd: java -version 2>&1 | grep version | awk '{print $3}' | sed 's/"//g'
+      register: java_version
+
+    - assert:
+        that: 
+          - "java_version.stdout is version('1.8.0_362','eq')"     
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-users-api.git
+        dest: "{{ java_app_location }}"
+
+    - name: Ensure java app folder exists.
+      file: "path={{ java_app_location }} state=directory"
+
+    - name: Move users-api.service
+      command: 
+        cmd: cp {{ java_app_location }}/users-api.service /etc/systemd/system  
+    
+    - name: Install dependencies
+      command: 
+        cmd: "{{ java_app_location }}/mvnw clean install"
+        chdir: "{{ java_app_location }}"
+        
+    - name: Run the application
+      command:
+        cmd: systemctl start users-api.service
