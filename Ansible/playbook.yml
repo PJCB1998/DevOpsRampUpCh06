@@ -49,7 +49,49 @@
       command: 
         cmd: "{{ java_app_location }}/mvnw clean install"
         chdir: "{{ java_app_location }}"
+        creates: "{{ java_app_location }}/target"
         
     - name: Run the application
       command:
         cmd: systemctl start users-api.service
+
+
+- hosts: auth_api
+  become: yes
+  vars :
+       go_app_location: /app/auth-api
+
+  tasks:
+    - name: Add Golang Backports PPA Repositroy 
+      apt_repository: 
+        repo: ppa:longsleep/golang-backports 
+        update_cache: true
+
+    - name: Install go
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - golang-go
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-auth-api.git
+        dest: "{{ go_app_location }}"
+
+    - name: Ensure go app folder exists.
+      file: "path={{ go_app_location }} state=directory"
+
+    - name: Move auth-api.service
+      command: 
+        cmd: cp {{ go_app_location }}/auth-api.service /etc/systemd/system  
+    
+    - name: Build go app
+      command: 
+        cmd: "{{ go_app_location }}/build-auth-api.sh"
+        chdir: "{{ go_app_location }}"
+        creates: "{{ go_app_location }}/auth-api"
+        
+    - name: Run the application
+      command:
+        cmd: systemctl start auth-api.service
