@@ -9,8 +9,8 @@
         - SERVER_PORT=8083
         - USERS_API_ADDRESS=http://192.168.56.30:8083
     3) todo_api
-        - TODO_API_PORT=8082
-        - TODO_API_ADDRESS=http://192.168.56.40:8082
+        - TODOS_API_PORT=8082
+        - TODOS_API_ADDRESS=http://192.168.56.40:8082
     4) lmp 
         - LMP_ADDRESS=http://192.168.56.50
     5) frontend
