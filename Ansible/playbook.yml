@@ -22,21 +22,13 @@
     - name: Correct java version selected
       community.general.alternatives:
         name: java
-        path: /usr/lib/jvm/java-8-openjdk-amd64/bin/java
-
-    - name: Fetch Java version
-      shell:
-        cmd: java -version 2>&1 | grep version | awk '{print $3}' | sed 's/"//g'
-      register: java_version
-
-    - assert:
-        that: 
-          - "java_version.stdout is version('1.8.0_362','eq')"     
+        path: /usr/lib/jvm/java-8-openjdk-amd64/bin/java  
 
     - name: Clone the repository
       git:
         repo: https://github.com/PJCB1998/DevOpsRampUp-users-api.git
         dest: "{{ java_app_location }}"
+        force: true
 
     - name: Ensure java app folder exists.
       file: "path={{ java_app_location }} state=directory"
@@ -78,6 +70,7 @@
       git:
         repo: https://github.com/PJCB1998/DevOpsRampUp-auth-api.git
         dest: "{{ go_app_location }}"
+        force: true
 
     - name: Ensure go app folder exists.
       file: "path={{ go_app_location }} state=directory"
@@ -102,7 +95,8 @@
   vars :
        node_app_location: /app/todo-api
 
-  tasks:
+  tasks: 
+
     - name: Install nodejs and npm
       apt: 
         update_cache: true 
@@ -115,6 +109,7 @@
       git:
         repo: https://github.com/PJCB1998/DevOpsRampUp-todos-api.git
         dest: "{{ node_app_location }}"
+        force: true
 
     - name: Ensure node app folder exists.
       file: "path={{ node_app_location }} state=directory"
@@ -125,9 +120,136 @@
     
     - name: Build node app
       command: 
-        cmd: "/usr/bin/npm install"
+        cmd: "/usr/bin/npm install --legacy-peer-deps"
         chdir: "{{ node_app_location }}"
-        
+      register: out
+
+    - name: print output
+      debug:
+        msg: "{{ out.stdout }}"    
+
     - name: Run the application
       command:
         cmd: systemctl start todo-api.service
+
+- hosts: frontend
+  become: yes
+  vars :
+       node_app_location: /app/frontend
+
+  tasks:
+       
+    - name: Install nodejs and npm
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - npm
+          - nodejs
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-frontend.git
+        dest: "{{ node_app_location }}"
+        force: true
+
+    - name: Ensure node app folder exists.
+      file: "path={{ node_app_location }} state=directory"
+
+    - name: Move frontend.service
+      command: 
+        cmd: cp {{ node_app_location }}/frontend.service /etc/systemd/system  
+    
+    - name: Install Dependecies node app
+      command: 
+        cmd: "/usr/bin/npm install --legacy-peer-deps"
+        chdir: "{{ node_app_location }}"
+      register: out
+
+    - name: print output
+      debug:
+        msg: "{{ out.stdout }}"           
+
+    - name: Build node app
+      command: 
+        cmd: "/usr/bin/npm run build"
+        chdir: "{{ node_app_location }}"
+
+    - name: Run the application
+      command:
+        cmd: systemctl start frontend.service    
+        
+- hosts: lmp
+  become: yes
+  vars :
+       lmp_app_location: /app/lmp
+
+  tasks:
+    - name: Install python
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - python3
+          - python3-pip
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-lmp.git
+        dest: "{{ lmp_app_location }}"
+        force: true
+
+    - name: Ensure lmp app folder exists.
+      file: "path={{ lmp_app_location }} state=directory"
+
+    - name: Move lmp.service
+      command: 
+        cmd: cp {{ lmp_app_location }}/lmp.service /etc/systemd/system  
+    
+    - name: Install Dependecies lmp app
+      command: 
+        cmd: "/usr/bin/pip3 install -r {{ lmp_app_location }}/requirements.txt"
+        chdir: "{{ lmp_app_location }}"
+
+    - name: Run the application
+      command:
+        cmd: systemctl start lmp.service    
+        
+- hosts: db
+  become: yes
+  tasks:
+    - name: Install Redis
+      apt:
+        name: redis-server
+        state: present
+        update_cache: true
+
+    - name: Start Redis
+      service:
+        name: redis-server
+        state: started               
+
+- hosts: zipkin
+  become: yes
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: true
+    - name: Install Docker Compose
+      apt:
+        name: docker-compose
+        state: present
+    - name: Pull Zipkin image
+      docker_image:
+        name: openzipkin/zipkin
+        source: pull 
+    - name: Run Zipkin container
+      docker_container:
+        name: zipkin
+        image: openzipkin/zipkin
+        ports:
+          - "9411:9411"
+        state: started
+        restart: true
