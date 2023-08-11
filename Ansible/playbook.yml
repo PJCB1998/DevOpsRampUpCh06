@@ -1,14 +1,303 @@
 ---
 - hosts: all
+  
   tasks:
-    - name: Print all hosts' hostnames, IP addresses, and ping the user
-      debug:
-        var:
-          - ansible_hostname
-          - ansible_default_ipv4
-          - ansible_user
+    - name: Ping 
+      ansible.builtin.ping:
 
-    - name: Ping the user
-      ping:
-        host: "{{ ansible_default_ipv4 }}"
-        user: "{{ ansible_user }}"
+    - name: Ensure ufw is stopped
+      become: yes
+      service: name=ufw state=stopped
+
+- hosts: db
+  become: yes
+  tasks:
+    - name: Install Redis
+      apt:
+        name: redis-server
+        state: present
+        update_cache: true
+
+    - name: Start Redis
+      service:
+        name: redis-server
+        state: started 
+
+    - name: Configure Redis
+      lineinfile:
+        path: /etc/redis/redis.conf
+        line: "bind 0.0.0.0" 
+        
+    - name: Restart Redis
+      service:
+        name: redis-server
+        state: restarted            
+
+- hosts: zipkin
+  become: yes
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: true
+    - name: Install Docker Compose
+      apt:
+        name: docker-compose
+        state: present
+    - name: Pull Zipkin image
+      docker_image:
+        name: openzipkin/zipkin
+        source: pull 
+    - name: Run Zipkin container
+      docker_container:
+        name: zipkin
+        image: openzipkin/zipkin
+        ports:
+          - "9411:9411"
+        state: started
+        restart: false
+
+- hosts: user_api
+  become: yes
+  vars :
+       java_app_location: /app/users-api
+
+  tasks:
+    - name: Install java
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - openjdk-8-jdk
+          - maven
+
+    - name: Correct java version selected
+      community.general.alternatives:
+        name: java
+        path: /usr/lib/jvm/java-8-openjdk-amd64/bin/java  
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-users-api.git
+        dest: "{{ java_app_location }}"
+        force: true
+
+    - name: Ensure java app folder exists.
+      file: "path={{ java_app_location }} state=directory"
+
+    - name: Move users-api.service
+      command: 
+        cmd: cp {{ java_app_location }}/users-api.service /etc/systemd/system  
+    
+    - name: Install dependencies
+      command: 
+        cmd: "{{ java_app_location }}/mvnw clean install"
+        chdir: "{{ java_app_location }}"
+        creates: "{{ java_app_location }}/target"
+        
+    - name: Run the application
+      command:
+        cmd: systemctl start users-api.service
+
+
+- hosts: auth_api
+  become: yes
+  vars :
+       go_app_location: /app/auth-api
+
+  tasks:
+    - name: Add Golang Backports PPA Repositroy 
+      apt_repository: 
+        repo: ppa:longsleep/golang-backports 
+        update_cache: true
+
+    - name: Install go
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - golang-go
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-auth-api.git
+        dest: "{{ go_app_location }}"
+        force: true
+
+    - name: Ensure go app folder exists.
+      file: "path={{ go_app_location }} state=directory"
+
+    - name: Move auth-api.service
+      command: 
+        cmd: cp {{ go_app_location }}/auth-api.service /etc/systemd/system  
+    
+    - name: Build go app
+      command: 
+        cmd: "{{ go_app_location }}/build-auth-api.sh"
+        chdir: "{{ go_app_location }}"
+        creates: "{{ go_app_location }}/auth-api"
+        
+    - name: Run the application
+      command:
+        cmd: systemctl start auth-api.service
+
+
+- hosts: todo_api
+  become: yes
+  vars :
+       node_app_location: /app/todo-api
+
+  tasks: 
+
+    - name: Add Node 12 Repo
+      shell: 
+        cmd: curl -fsSL https://deb.nodesource.com/setup_12.x | bash
+
+    - name: Install nodejs and npm
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - nodejs
+
+    - name: Get Nodejs Version
+      command: 
+        cmd: node --version
+      register: out
+    
+    - debug:
+        var: out.stdout_lines
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-todos-api.git
+        dest: "{{ node_app_location }}"
+        force: true
+
+    - name: Ensure node app folder exists.
+      file: "path={{ node_app_location }} state=directory"
+
+    - name: Move todo-api.service
+      command: 
+        cmd: cp {{ node_app_location }}/todo-api.service /etc/systemd/system  
+
+    - name: Delte package-lock.json 
+      command:
+        cmd: rm {{ node_app_location }}/package-lock.json  
+        removes: "{{ node_app_location }}/package-lock.json"
+
+    - name: clear npm cache
+      command: 
+        cmd: "/usr/bin/npm cache clean --force"
+        chdir: "{{ node_app_location }}"      
+    
+    - name: Install packages based on package.json.
+      npm:
+        path: "{{ node_app_location }}"
+   
+    - name: Run the application
+      command:
+        cmd: systemctl start todo-api.service
+
+- hosts: frontend
+  become: yes
+  vars :
+       node_app_location: /app/frontend
+
+  tasks: 
+
+    - name: Add Node 12 Repo
+      shell: 
+        cmd: curl -fsSL https://deb.nodesource.com/setup_12.x | bash
+
+    - name: Install nodejs and npm
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - nodejs 
+          - python2
+          - python3
+
+    - name: Get Nodejs Version
+      command: 
+        cmd: node --version
+      register: out
+    
+    - debug:
+        var: out.stdout_lines
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-frontend.git
+        dest: "{{ node_app_location }}"
+        force: true
+
+    - name: Ensure node app folder exists.
+      file: "path={{ node_app_location }} state=directory"
+
+    - name: Move frontend.service
+      command: 
+        cmd: cp {{ node_app_location }}/frontend.service /etc/systemd/system  
+
+    - name: Delte package-lock.json 
+      command:
+        cmd: rm {{ node_app_location }}/package-lock.json  
+        removes: "{{ node_app_location }}/package-lock.json"
+
+    - name: clear npm cache
+      command: 
+        cmd: "/usr/bin/npm cache clean --force"
+        chdir: "{{ node_app_location }}"    
+    
+    - name: Install packages based on package.json.
+      command: 
+        cmd: "/usr/bin/npm install --loglevel=error --unsafe-perm=true --allow-root"
+        chdir: "{{ node_app_location }}"
+
+    - name: Build node app
+      command: 
+        cmd: "/usr/bin/npm run build"
+        chdir: "{{ node_app_location }}"
+
+    - name: Run the application
+      command:
+        cmd: systemctl start frontend.service    
+      
+- hosts: lmp
+  become: yes
+  vars :
+       lmp_app_location: /app/lmp
+
+  tasks:
+    - name: Install python
+      apt: 
+        update_cache: true 
+        state: present
+        name: 
+          - python3
+          - python3-pip
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/PJCB1998/DevOpsRampUp-lmp.git
+        dest: "{{ lmp_app_location }}"
+        force: true
+
+    - name: Ensure lmp app folder exists.
+      file: "path={{ lmp_app_location }} state=directory"
+
+    - name: Move lmp.service
+      command: 
+        cmd: cp {{ lmp_app_location }}/lmp.service /etc/systemd/system  
+    
+    - name: Install Dependecies lmp app
+      command: 
+        cmd: "/usr/bin/pip3 install -r {{ lmp_app_location }}/requirements.txt"
+        chdir: "{{ lmp_app_location }}"
+
+    - name: Run the application
+      command:
+        cmd: systemctl start lmp.service    
+                            
