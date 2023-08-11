@@ -1,0 +1,14 @@
+---
+- hosts: all
+  tasks:
+    - name: Print all hosts' hostnames, IP addresses, and ping the user
+      debug:
+        var:
+          - ansible_hostname
+          - ansible_default_ipv4
+          - ansible_user
+
+    - name: Ping the user
+      ping:
+        host: "{{ ansible_default_ipv4 }}"
+        user: "{{ ansible_user }}"
