@@ -5,6 +5,59 @@
     - name: Ping 
       ansible.builtin.ping:
 
+    - name: Ensure ufw is stopped
+      become: yes
+      service: name=ufw state=stopped
+
+- hosts: db
+  become: yes
+  tasks:
+    - name: Install Redis
+      apt:
+        name: redis-server
+        state: present
+        update_cache: true
+
+    - name: Start Redis
+      service:
+        name: redis-server
+        state: started 
+
+    - name: Configure Redis
+      lineinfile:
+        path: /etc/redis/redis.conf
+        line: "bind 0.0.0.0" 
+        
+    - name: Restart Redis
+      service:
+        name: redis-server
+        state: restarted            
+
+- hosts: zipkin
+  become: yes
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: true
+    - name: Install Docker Compose
+      apt:
+        name: docker-compose
+        state: present
+    - name: Pull Zipkin image
+      docker_image:
+        name: openzipkin/zipkin
+        source: pull 
+    - name: Run Zipkin container
+      docker_container:
+        name: zipkin
+        image: openzipkin/zipkin
+        ports:
+          - "9411:9411"
+        state: started
+        restart: false
+
 - hosts: user_api
   become: yes
   vars :
@@ -97,13 +150,24 @@
 
   tasks: 
 
+    - name: Add Node 12 Repo
+      shell: 
+        cmd: curl -fsSL https://deb.nodesource.com/setup_12.x | bash
+
     - name: Install nodejs and npm
       apt: 
         update_cache: true 
         state: present
         name: 
-          - npm
           - nodejs
+
+    - name: Get Nodejs Version
+      command: 
+        cmd: node --version
+      register: out
+    
+    - debug:
+        var: out.stdout_lines
 
     - name: Clone the repository
       git:
@@ -117,17 +181,21 @@
     - name: Move todo-api.service
       command: 
         cmd: cp {{ node_app_location }}/todo-api.service /etc/systemd/system  
-    
-    - name: Build node app
+
+    - name: Delte package-lock.json 
+      command:
+        cmd: rm {{ node_app_location }}/package-lock.json  
+        removes: "{{ node_app_location }}/package-lock.json"
+
+    - name: clear npm cache
       command: 
-        cmd: "/usr/bin/npm install --legacy-peer-deps"
-        chdir: "{{ node_app_location }}"
-      register: out
-
-    - name: print output
-      debug:
-        msg: "{{ out.stdout }}"    
-
+        cmd: "/usr/bin/npm cache clean --force"
+        chdir: "{{ node_app_location }}"      
+    
+    - name: Install packages based on package.json.
+      npm:
+        path: "{{ node_app_location }}"
+   
     - name: Run the application
       command:
         cmd: systemctl start todo-api.service
@@ -137,15 +205,28 @@
   vars :
        node_app_location: /app/frontend
 
-  tasks:
-       
+  tasks: 
+
+    - name: Add Node 12 Repo
+      shell: 
+        cmd: curl -fsSL https://deb.nodesource.com/setup_12.x | bash
+
     - name: Install nodejs and npm
       apt: 
         update_cache: true 
         state: present
         name: 
-          - npm
-          - nodejs
+          - nodejs 
+          - python2
+          - python3
+
+    - name: Get Nodejs Version
+      command: 
+        cmd: node --version
+      register: out
+    
+    - debug:
+        var: out.stdout_lines
 
     - name: Clone the repository
       git:
@@ -159,16 +240,21 @@
     - name: Move frontend.service
       command: 
         cmd: cp {{ node_app_location }}/frontend.service /etc/systemd/system  
-    
-    - name: Install Dependecies node app
-      command: 
-        cmd: "/usr/bin/npm install --legacy-peer-deps"
-        chdir: "{{ node_app_location }}"
-      register: out
 
-    - name: print output
-      debug:
-        msg: "{{ out.stdout }}"           
+    - name: Delte package-lock.json 
+      command:
+        cmd: rm {{ node_app_location }}/package-lock.json  
+        removes: "{{ node_app_location }}/package-lock.json"
+
+    - name: clear npm cache
+      command: 
+        cmd: "/usr/bin/npm cache clean --force"
+        chdir: "{{ node_app_location }}"    
+    
+    - name: Install packages based on package.json.
+      command: 
+        cmd: "/usr/bin/npm install --loglevel=error --unsafe-perm=true --allow-root"
+        chdir: "{{ node_app_location }}"
 
     - name: Build node app
       command: 
@@ -178,7 +264,7 @@
     - name: Run the application
       command:
         cmd: systemctl start frontend.service    
-        
+      
 - hosts: lmp
   become: yes
   vars :
@@ -214,42 +300,4 @@
     - name: Run the application
       command:
         cmd: systemctl start lmp.service    
-        
-- hosts: db
-  become: yes
-  tasks:
-    - name: Install Redis
-      apt:
-        name: redis-server
-        state: present
-        update_cache: true
-
-    - name: Start Redis
-      service:
-        name: redis-server
-        state: started               
-
-- hosts: zipkin
-  become: yes
-  tasks:
-    - name: Install Docker
-      apt:
-        name: docker.io
-        state: present
-        update_cache: true
-    - name: Install Docker Compose
-      apt:
-        name: docker-compose
-        state: present
-    - name: Pull Zipkin image
-      docker_image:
-        name: openzipkin/zipkin
-        source: pull 
-    - name: Run Zipkin container
-      docker_container:
-        name: zipkin
-        image: openzipkin/zipkin
-        ports:
-          - "9411:9411"
-        state: started
-        restart: true
+                            
